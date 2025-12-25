@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AADS - All-Time Stats | Atlantic Amateur Darts Series</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- HEADER -->
+    <header class="main-header">
+        <div class="header-content">
+            <!-- LOGO SECTION -->
+            <div class="logo-section">
+                <a href="index.html">
+                    <img src="../assets/logos/Official AADS Logo.png" alt="AADS Logo" class="main-logo">
+                </a>
+                <div class="sponsor-logos">
+                    <!-- UPDATE THESE HREFS WITH YOUR ACTUAL WEBSITE URLS -->
+                    <a href="#" target="_blank" title="CGC Darts">
+                        <img src="../assets/logos/CGCDARTS-COM IMPROVED LOGO.png" alt="CGC Darts" class="sponsor-logo">
+                    </a>
+                    <a href="https://aadsdarts.com" target="_blank" title="MD Studios">
+                        <img src="../assets/logos/MDstudios Logo.png" alt="MD Studios" class="sponsor-logo">
+                    </a>
+                    <a href="https://share.google/n72Q5jiffuoh394fn" target="_blank" title="CGC TV">
+                        <img src="../assets/logos/CGCTV logo.png" alt="CGC TV" class="sponsor-logo">
+                    </a>
+                </div>
+            </div>
+
+            <!-- MAIN NAVIGATION -->
+            <nav class="main-nav">
+                <button class="nav-tab active" onclick="window.location.href='index.html'">All-Time Stats</button>
+                <button class="nav-tab" onclick="window.location.href='series-view.html'">Series</button>
+                <button class="nav-tab" onclick="window.location.href='players-directory.html'">Players Directory</button>
+                <button class="nav-tab" onclick="window.location.href='head-to-head.html'">Head-to-Head</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="container">
+        <h1 class="page-title">AADS All-Time Statistics</h1>
+
+        <!-- FILTER SECTION -->
+        <div class="filter-section">
+            <select id="eventFilter" class="filter-dropdown">
+                <option value="all">All Events</option>
+                <option value="qualifier">Qualifier Events Only</option>
+                <option value="toc">TOC Events Only</option>
+            </select>
+        </div>
+
+        <!-- ACHIEVEMENTS OVERVIEW -->
+        <div class="section-card">
+            <h2 class="section-title">Championship Summary</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Qualifier Champions</div>
+                    <div class="stat-value" id="qualifierChamps">0</div>
+                </div>
+                <div class="stat-card" style="border-color: var(--gold-trophy);">
+                    <div class="stat-label">🏆 TOC Champions</div>
+                    <div class="stat-value" style="color: var(--gold-trophy);" id="tocChamps">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LEADERBOARD TABLE -->
+        <div class="section-card">
+            <h2 class="section-title">Overall Leaderboard</h2>
+            <table class="stats-table" id="leaderboardTable">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Matches</th>
+                        <th>Leg Win %</th>
+                        <th>3DA</th>
+                        <th>First 9</th>
+                        <th>CO%</th>
+                        <th>180s</th>
+                        <th>Qualifier Wins</th>
+                        <th>🏆 TOC Wins</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboardBody">
+                    <tr>
+                        <td colspan="10" class="text-center">Loading stats...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SPONSOR FOOTER -->
+        <div class="section-card text-center">
+            <p style="color: var(--text-muted); font-size: 14px;">
+                Powered by 
+                <a href="#" target="_blank">CGC Darts</a> | 
+                <a href="#" target="_blank">MD Studios</a> | 
+                <a href="#" target="_blank">CGC TV</a>
+            </p>
+        </div>
+    </main>
+
+    <!-- SCRIPTS -->
+    <script src="../js/app.js"></script>
+    <script>
+        let allStats = [];
+        let currentFilter = 'all';
+
+        // Load stats on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadAllTimeStats();
+            
+            // Event filter listener
+            document.getElementById('eventFilter').addEventListener('change', (e) => {
+                currentFilter = e.target.value;
+                filterAndDisplayStats();
+            });
+
+            // Subscribe to real-time updates
+            AADS.subscribeToTable('matches', () => loadAllTimeStats());
+        });
+
+        async function loadAllTimeStats() {
+            AADS.showLoading('leaderboardBody');
+
+            try {
+                // Fetch all players
+                const players = await AADS.fetchPlayers();
+                
+                // Fetch all matches with stats
+                const { data: matches, error } = await AADS.supabase
+                    .from('matches')
+                    .select(`
+                        *,
+                        event:event_id (
+                            event_number,
+                            is_toc,
+                            series:series_id (series_name)
+                        ),
+                        match_stats (
+                            player_id,
+                            three_dart_avg,
+                            first_nine_avg,
+                            checkout_completed,
+                            checkout_opportunity,
+                            one_eighties
+                        )
+                    `);
+
+                if (error) throw error;
+
+                // Calculate stats for each player
+                const playerStats = {};
+                
+                players.forEach(player => {
+                    playerStats[player.id] = {
+                        id: player.id,
+                        name: player.name,
+                        matches: 0,
+                        legWins: 0,
+                        legTotal: 0,
+                        totalPoints: 0,
+                        totalDarts: 0,
+                        first9Total: 0,
+                        first9Count: 0,
+                        coCompleted: 0,
+                        coOpportunity: 0,
+                        total180s: 0,
+                        qualifierWins: 0,
+                        tocWins: 0
+                    };
+                });
+
+                // Process matches
+                matches.forEach(match => {
+                    if (!match.event) return;
+
+                    const filterToc = match.event.is_toc;
+
+                    // Update player 1
+                    if (playerStats[match.player_1_id]) {
+                        const p = playerStats[match.player_1_id];
+                        p.matches++;
+                        p.legWins += match.p1_legs;
+                        p.legTotal += match.p1_legs + match.p2_legs;
+                        
+                        if (match.winner_id === match.player_1_id) {
+                            if (filterToc) p.tocWins++;
+                            else p.qualifierWins++;
+                        }
+                    }
+
+                    // Update player 2
+                    if (playerStats[match.player_2_id]) {
+                        const p = playerStats[match.player_2_id];
+                        p.matches++;
+                        p.legWins += match.p2_legs;
+                        p.legTotal += match.p1_legs + match.p2_legs;
+                        
+                        if (match.winner_id === match.player_2_id) {
+                            if (filterToc) p.tocWins++;
+                            else p.qualifierWins++;
+                        }
+                    }
+
+                    // Process match stats
+                    match.match_stats.forEach(stat => {
+                        if (playerStats[stat.player_id]) {
+                            const p = playerStats[stat.player_id];
+                            if (stat.three_dart_avg) {
+                                p.totalPoints += stat.three_dart_avg;
+                                p.totalDarts++;
+                            }
+                            if (stat.first_nine_avg) {
+                                p.first9Total += stat.first_nine_avg;
+                                p.first9Count++;
+                            }
+                            p.coCompleted += stat.checkout_completed || 0;
+                            p.coOpportunity += stat.checkout_opportunity || 0;
+                            p.total180s += stat.one_eighties || 0;
+                        }
+                    });
+                });
+
+                // Convert to array and calculate percentages
+                allStats = Object.values(playerStats)
+                    .filter(p => p.matches > 0)
+                    .map(p => ({
+                        ...p,
+                        legWinPercent: ((p.legWins / p.legTotal) * 100).toFixed(2),
+                        avg3DA: p.totalDarts > 0 ? (p.totalPoints / p.totalDarts).toFixed(2) : '0.00',
+                        avgFirst9: p.first9Count > 0 ? (p.first9Total / p.first9Count).toFixed(2) : '0.00',
+                        coPercent: p.coOpportunity > 0 ? ((p.coCompleted / p.coOpportunity) * 100).toFixed(2) : '0.00'
+                    }))
+                    .sort((a, b) => parseFloat(b.legWinPercent) - parseFloat(a.legWinPercent));
+
+                // Update championship counts
+                const totalQualifierChamps = allStats.reduce((sum, p) => sum + p.qualifierWins, 0);
+                const totalTocChamps = allStats.reduce((sum, p) => sum + p.tocWins, 0);
+                document.getElementById('qualifierChamps').textContent = totalQualifierChamps;
+                document.getElementById('tocChamps').textContent = totalTocChamps;
+
+                filterAndDisplayStats();
+
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                document.getElementById('leaderboardBody').innerHTML = 
+                    '<tr><td colspan="10" class="text-center" style="color: var(--lose-red);">Error loading stats. Check console.</td></tr>';
+            }
+        }
+
+        function filterAndDisplayStats() {
+            let filtered = allStats;
+
+            // Apply filter logic based on event type
+            if (currentFilter === 'qualifier') {
+                filtered = allStats.filter(p => p.qualifierWins > 0);
+            } else if (currentFilter === 'toc') {
+                filtered = allStats.filter(p => p.tocWins > 0);
+            }
+
+            displayStats(filtered);
+        }
+
+        function displayStats(stats) {
+            const tbody = document.getElementById('leaderboardBody');
+            
+            if (stats.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center">No players found for this filter.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = stats.map((player, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td class="player-name" onclick="window.location.href='player-profile.html?id=${player.id}'">${player.name}</td>
+                    <td>${player.matches}</td>
+                    <td>${player.legWinPercent}%</td>
+                    <td>${player.avg3DA}</td>
+                    <td>${player.avgFirst9}</td>
+                    <td>${player.coPercent}%</td>
+                    <td>${player.total180s}</td>
+                    <td>${player.qualifierWins}</td>
+                    <td style="color: var(--gold-trophy); font-weight: 700;">${player.tocWins > 0 ? '🏆 ' : ''}${player.tocWins}</td>
+                </tr>
+            `).join('');
+        }
+    </script>
+</body>
+</html>

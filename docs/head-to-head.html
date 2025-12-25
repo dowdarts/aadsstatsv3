@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AADS - Head-to-Head | Atlantic Amateur Darts Series</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <a href="index.html">
+                    <img src="../assets/logos/Official AADS Logo.png" alt="AADS Logo" class="main-logo">
+                </a>
+                <div class="sponsor-logos">
+                    <a href="https://cgcdarts.com" target="_blank"><img src="../assets/logos/CGCDARTS-COM IMPROVED LOGO.png" alt="CGC Darts" class="sponsor-logo"></a>
+                    <a href="https://aadsdarts.com" target="_blank"><img src="../assets/logos/MDstudios Logo.png" alt="MD Studios" class="sponsor-logo"></a>
+                    <a href="https://share.google/n72Q5jiffuoh394fn" target="_blank"><img src="../assets/logos/CGCTV logo.png" alt="CGC TV" class="sponsor-logo"></a>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <button class="nav-tab" onclick="window.location.href='index.html'">All-Time Stats</button>
+                <button class="nav-tab" onclick="window.location.href='series-view.html'">Series</button>
+                <button class="nav-tab" onclick="window.location.href='players-directory.html'">Players Directory</button>
+                <button class="nav-tab active" onclick="window.location.href='head-to-head.html'">Head-to-Head</button>
+            </nav>
+        </div>
+    </header>
+
+    <div class="breadcrumb-section">
+        <div class="breadcrumb"><a href="index.html">Home</a> > <span>Head-to-Head</span></div>
+        <button class="back-button" onclick="AADS.navHistory.goBack()">← Back</button>
+    </div>
+
+    <main class="container">
+        <h1 class="page-title">Head-to-Head Comparison</h1>
+
+        <!-- PLAYER SELECTORS -->
+        <div class="section-card">
+            <div class="h2h-selector">
+                <div class="autocomplete-container">
+                    <label>Player 1</label>
+                    <input type="text" id="player1Input" class="form-input" placeholder="Search player...">
+                    <div id="player1Suggestions" class="autocomplete-suggestions"></div>
+                </div>
+                <div class="vs-divider">VS</div>
+                <div class="autocomplete-container">
+                    <label>Player 2</label>
+                    <input type="text" id="player2Input" class="form-input" placeholder="Search player...">
+                    <div id="player2Suggestions" class="autocomplete-suggestions"></div>
+                </div>
+            </div>
+            <button class="btn-primary" onclick="comparePlayers()" style="margin: 20px auto; display: block;">Compare</button>
+        </div>
+
+        <!-- RESULTS -->
+        <div id="h2hResults" style="display: none;">
+            <!-- HEAD-TO-HEAD RECORD (if matches exist) -->
+            <div id="h2hRecord" style="display: none;">
+                <div class="section-card">
+                    <h2 class="section-title">Head-to-Head Record</h2>
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="stat-value" id="p1Wins">0</div>
+                            <div class="stat-label" id="p1NameLabel">Player 1 Wins</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="h2hTotal">0</div>
+                            <div class="stat-label">Total Matches</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="p2Wins">0</div>
+                            <div class="stat-label" id="p2NameLabel">Player 2 Wins</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-card">
+                    <h2 class="section-title">Career Averages (All Matches)</h2>
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Player</th>
+                                <th>Leg Win %</th>
+                                <th>3DA</th>
+                                <th>First 9</th>
+                                <th>CO%</th>
+                                <th>180s</th>
+                            </tr>
+                        </thead>
+                        <tbody id="careerComparison"></tbody>
+                    </table>
+                </div>
+
+                <div class="section-card">
+                    <h2 class="section-title">Match History</h2>
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Event</th>
+                                <th>Winner</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="matchHistory"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- CURRENT FORM (if no direct matches) -->
+            <div id="currentForm" style="display: none;">
+                <div class="section-card">
+                    <h2 class="section-title">No Direct Matchups</h2>
+                    <p class="text-center">These players have not faced each other yet. Here's their current form:</p>
+                </div>
+
+                <div class="section-card">
+                    <h2 class="section-title" id="p1FormTitle">Player 1 - Last 5 Matches</h2>
+                    <div class="form-boxes" id="p1Form"></div>
+                </div>
+
+                <div class="section-card">
+                    <h2 class="section-title" id="p2FormTitle">Player 2 - Last 5 Matches</h2>
+                    <div class="form-boxes" id="p2Form"></div>
+                </div>
+
+                <div class="section-card">
+                    <h2 class="section-title">Career Comparison</h2>
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Player</th>
+                                <th>Matches</th>
+                                <th>Leg Win %</th>
+                                <th>3DA</th>
+                                <th>180s</th>
+                                <th>Event Wins</th>
+                            </tr>
+                        </thead>
+                        <tbody id="formComparison"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/app.js"></script>
+    <script>
+        let player1 = null;
+        let player2 = null;
+        let autocomplete1, autocomplete2;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const players = await AADS.fetchPlayers();
+            
+            autocomplete1 = new AADS.Autocomplete('player1Input', 'player1Suggestions', players, p => {
+                player1 = p;
+            });
+
+            autocomplete2 = new AADS.Autocomplete('player2Input', 'player2Suggestions', players, p => {
+                player2 = p;
+            });
+        });
+
+        async function comparePlayers() {
+            if (!player1 || !player2) {
+                alert('Please select both players');
+                return;
+            }
+
+            if (player1.id === player2.id) {
+                alert('Please select different players');
+                return;
+            }
+
+            const { data: h2hMatches } = await AADS.supabase
+                .from('matches')
+                .select('*, event:event_id(event_number, is_toc, series:series_id(series_name)), match_stats(*)')
+                .or(`and(player_1_id.eq.${player1.id},player_2_id.eq.${player2.id}),and(player_1_id.eq.${player2.id},player_2_id.eq.${player1.id})`);
+
+            document.getElementById('h2hResults').style.display = 'block';
+
+            if (h2hMatches && h2hMatches.length > 0) {
+                await showH2HRecord(h2hMatches);
+            } else {
+                await showCurrentForm();
+            }
+        }
+
+        async function showH2HRecord(matches) {
+            document.getElementById('h2hRecord').style.display = 'block';
+            document.getElementById('currentForm').style.display = 'none';
+
+            const p1Wins = matches.filter(m => m.winner_id === player1.id).length;
+            const p2Wins = matches.filter(m => m.winner_id === player2.id).length;
+
+            document.getElementById('p1NameLabel').textContent = `${player1.name} Wins`;
+            document.getElementById('p2NameLabel').textContent = `${player2.name} Wins`;
+            document.getElementById('p1Wins').textContent = p1Wins;
+            document.getElementById('p2Wins').textContent = p2Wins;
+            document.getElementById('h2hTotal').textContent = matches.length;
+
+            // Career comparison
+            const p1Career = await getPlayerCareerStats(player1.id);
+            const p2Career = await getPlayerCareerStats(player2.id);
+
+            document.getElementById('careerComparison').innerHTML = `
+                <tr>
+                    <td class="player-name" onclick="window.location.href='player-profile.html?id=${player1.id}'">${player1.name}</td>
+                    <td>${p1Career.legWinPct}%</td>
+                    <td>${p1Career.avg3DA}</td>
+                    <td>${p1Career.avgFirst9}</td>
+                    <td>${p1Career.coPct}%</td>
+                    <td>${p1Career.total180s}</td>
+                </tr>
+                <tr>
+                    <td class="player-name" onclick="window.location.href='player-profile.html?id=${player2.id}'">${player2.name}</td>
+                    <td>${p2Career.legWinPct}%</td>
+                    <td>${p2Career.avg3DA}</td>
+                    <td>${p2Career.avgFirst9}</td>
+                    <td>${p2Career.coPct}%</td>
+                    <td>${p2Career.total180s}</td>
+                </tr>
+            `;
+
+            // Match history
+            document.getElementById('matchHistory').innerHTML = matches.map(m => {
+                const p1IsPlayer1 = m.player_1_id === player1.id;
+                const winner = m.winner_id === player1.id ? player1.name : player2.name;
+                const score = p1IsPlayer1 ? `${m.p1_legs}-${m.p2_legs}` : `${m.p2_legs}-${m.p1_legs}`;
+
+                return `
+                    <tr>
+                        <td>${new Date(m.created_at).toLocaleDateString()}</td>
+                        <td>${m.event.series.series_name} E${m.event.event_number}</td>
+                        <td class="player-name" onclick="window.location.href='player-profile.html?id=${m.winner_id}'">${winner}</td>
+                        <td>${score}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function showCurrentForm() {
+            document.getElementById('h2hRecord').style.display = 'none';
+            document.getElementById('currentForm').style.display = 'block';
+
+            document.getElementById('p1FormTitle').textContent = `${player1.name} - Last 5 Matches`;
+            document.getElementById('p2FormTitle').textContent = `${player2.name} - Last 5 Matches`;
+
+            const p1Form = await getPlayerForm(player1.id);
+            const p2Form = await getPlayerForm(player2.id);
+
+            document.getElementById('p1Form').innerHTML = p1Form;
+            document.getElementById('p2Form').innerHTML = p2Form;
+
+            const p1Career = await getPlayerCareerStats(player1.id);
+            const p2Career = await getPlayerCareerStats(player2.id);
+
+            document.getElementById('formComparison').innerHTML = `
+                <tr>
+                    <td class="player-name" onclick="window.location.href='player-profile.html?id=${player1.id}'">${player1.name}</td>
+                    <td>${p1Career.totalMatches}</td>
+                    <td>${p1Career.legWinPct}%</td>
+                    <td>${p1Career.avg3DA}</td>
+                    <td>${p1Career.total180s}</td>
+                    <td>${p1Career.eventWins}</td>
+                </tr>
+                <tr>
+                    <td class="player-name" onclick="window.location.href='player-profile.html?id=${player2.id}'">${player2.name}</td>
+                    <td>${p2Career.totalMatches}</td>
+                    <td>${p2Career.legWinPct}%</td>
+                    <td>${p2Career.avg3DA}</td>
+                    <td>${p2Career.total180s}</td>
+                    <td>${p2Career.eventWins}</td>
+                </tr>
+            `;
+        }
+
+        async function getPlayerForm(playerId) {
+            const { data: matches } = await AADS.supabase
+                .from('matches')
+                .select('winner_id')
+                .or(`player_1_id.eq.${playerId},player_2_id.eq.${playerId}`)
+                .order('created_at', { ascending: false })
+                .limit(5);
+
+            if (!matches || matches.length === 0) {
+                return '<div class="form-box">No recent matches</div>';
+            }
+
+            return matches.map(m => {
+                const won = m.winner_id === playerId;
+                return `<div class="form-box ${won ? 'win' : 'lose'}">${won ? 'WIN' : 'LOSE'}</div>`;
+            }).join('');
+        }
+
+        async function getPlayerCareerStats(playerId) {
+            const { data: matches } = await AADS.supabase
+                .from('matches')
+                .select('*, match_stats(player_id, three_dart_avg, first_nine_avg, checkout_percent, one_eighties), event:event_id(is_toc)')
+                .or(`player_1_id.eq.${playerId},player_2_id.eq.${playerId}`);
+
+            let legWins = 0, legTotal = 0, total3DA = 0, count3DA = 0, totalFirst9 = 0, countFirst9 = 0;
+            let totalCO = 0, countCO = 0, total180s = 0, eventWins = 0;
+
+            (matches || []).forEach(m => {
+                const isP1 = m.player_1_id === playerId;
+                legWins += isP1 ? m.p1_legs : m.p2_legs;
+                legTotal += m.p1_legs + m.p2_legs;
+
+                if (m.winner_id === playerId) eventWins++;
+
+                (m.match_stats || []).forEach(s => {
+                    if (s.player_id === playerId) {
+                        if (s.three_dart_avg) {
+                            total3DA += s.three_dart_avg;
+                            count3DA++;
+                        }
+                        if (s.first_nine_avg) {
+                            totalFirst9 += s.first_nine_avg;
+                            countFirst9++;
+                        }
+                        if (s.checkout_percent != null) {
+                            totalCO += s.checkout_percent;
+                            countCO++;
+                        }
+                        total180s += s.one_eighties || 0;
+                    }
+                });
+            });
+
+            return {
+                totalMatches: matches?.length || 0,
+                legWinPct: legTotal > 0 ? ((legWins / legTotal) * 100).toFixed(2) : '0.00',
+                avg3DA: count3DA > 0 ? (total3DA / count3DA).toFixed(2) : '0.00',
+                avgFirst9: countFirst9 > 0 ? (totalFirst9 / countFirst9).toFixed(2) : '0.00',
+                coPct: countCO > 0 ? (totalCO / countCO).toFixed(2) : '0.00',
+                total180s,
+                eventWins
+            };
+        }
+    </script>
+</body>
+</html>
