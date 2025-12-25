@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AADS - Player Profile | Atlantic Amateur Darts Series</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <a href="index.html">
+                    <img src="../assets/logos/Official AADS Logo.png" alt="AADS Logo" class="main-logo">
+                </a>
+                <div class="sponsor-logos">
+                    <a href="https://cgcdarts.com" target="_blank"><img src="../assets/logos/CGCDARTS-COM IMPROVED LOGO.png" alt="CGC Darts" class="sponsor-logo"></a>
+                    <a href="https://aadsdarts.com" target="_blank"><img src="../assets/logos/MDstudios Logo.png" alt="MD Studios" class="sponsor-logo"></a>
+                    <a href="https://share.google/n72Q5jiffuoh394fn" target="_blank"><img src="../assets/logos/CGCTV logo.png" alt="CGC TV" class="sponsor-logo"></a>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <button class="nav-tab" onclick="window.location.href='index.html'">All-Time Stats</button>
+                <button class="nav-tab" onclick="window.location.href='series-view.html'">Series</button>
+                <button class="nav-tab" onclick="window.location.href='players-directory.html'">Players Directory</button>
+                <button class="nav-tab" onclick="window.location.href='head-to-head.html'">Head-to-Head</button>
+            </nav>
+        </div>
+    </header>
+
+    <div class="breadcrumb-section">
+        <div class="breadcrumb"><a href="index.html">Home</a> > <a href="players-directory.html">Players</a> > <span id="playerBreadcrumb">...</span></div>
+        <button class="back-button" onclick="AADS.navHistory.goBack()">← Back</button>
+    </div>
+
+    <main class="container">
+        <!-- TOC CHAMPIONSHIP BANNERS -->
+        <div id="tocBanners"></div>
+
+        <!-- PLAYER CARD -->
+        <div class="section-card">
+            <div class="player-profile-header">
+                <img id="playerPhoto" src="../assets/logos/Official AADS Logo.png" alt="Player Photo" class="player-photo-large">
+                <div>
+                    <h1 class="page-title" id="playerName">Loading...</h1>
+                    <p id="playerHometown" class="text-muted"></p>
+                    <p id="playerBio"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CAREER STATS -->
+        <div class="section-card">
+            <h2 class="section-title">Career Statistics (All Series)</h2>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-value" id="careerMatches">0</div>
+                    <div class="stat-label">Matches Played</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="careerLegWinPct">0%</div>
+                    <div class="stat-label">Leg Win %</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="career3DA">0.00</div>
+                    <div class="stat-label">Avg 3DA</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="career180s">0</div>
+                    <div class="stat-label">180s</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="careerQualWins">0</div>
+                    <div class="stat-label">Qualifier Wins</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="careerTOCWins">0</div>
+                    <div class="stat-label">TOC Wins</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ACHIEVEMENTS -->
+        <div class="section-card">
+            <h2 class="section-title">Event Victories</h2>
+            <div class="achievements-grid" id="achievements">
+                <p class="text-center">No event wins yet</p>
+            </div>
+        </div>
+
+        <!-- SERIES PERFORMANCE -->
+        <div class="section-card">
+            <h2 class="section-title">Performance by Series</h2>
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th>Series</th>
+                        <th>Matches</th>
+                        <th>Leg Win %</th>
+                        <th>3DA</th>
+                        <th>180s</th>
+                        <th>Event Wins</th>
+                    </tr>
+                </thead>
+                <tbody id="seriesPerf"></tbody>
+            </table>
+        </div>
+
+        <!-- MATCH HISTORY -->
+        <div class="section-card">
+            <h2 class="section-title">Recent Match History</h2>
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Event</th>
+                        <th>Opponent</th>
+                        <th>Result</th>
+                        <th>Score</th>
+                        <th>3DA</th>
+                    </tr>
+                </thead>
+                <tbody id="matchHistory"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <script src="../js/app.js"></script>
+    <script>
+        let playerId = null;
+        let player = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const params = new URLSearchParams(window.location.search);
+            playerId = params.get('id');
+            
+            if (!playerId) {
+                window.location.href = 'players-directory.html';
+                return;
+            }
+
+            await loadPlayer();
+        });
+
+        async function loadPlayer() {
+            const players = await AADS.fetchPlayers();
+            player = players.find(p => p.id == playerId);
+
+            if (!player) {
+                alert('Player not found');
+                window.location.href = 'players-directory.html';
+                return;
+            }
+
+            document.getElementById('playerBreadcrumb').textContent = player.name;
+            document.getElementById('playerName').textContent = player.name;
+            document.getElementById('playerHometown').textContent = player.hometown || '';
+            document.getElementById('playerBio').textContent = player.bio || '';
+            
+            if (player.photo_url) {
+                document.getElementById('playerPhoto').src = player.photo_url;
+            }
+
+            await loadTOCBanners();
+            await loadCareerStats();
+            await loadAchievements();
+            await loadSeriesPerformance();
+            await loadMatchHistory();
+        }
+
+        async function loadTOCBanners() {
+            const { data: tocWins } = await AADS.supabase
+                .from('events')
+                .select('*, series:series_id(series_name)')
+                .eq('winner_id', playerId)
+                .eq('is_toc', true)
+                .order('id');
+
+            if (tocWins && tocWins.length > 0) {
+                document.getElementById('tocBanners').innerHTML = tocWins.map(e => `
+                    <div class="toc-champion-banner" onclick="window.location.href='event-view.html?id=${e.id}'">
+                        <span class="trophy-icon">🏆</span>
+                        <strong>${e.series.series_name} Tournament of Champions WINNER</strong>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function loadCareerStats() {
+            const { data: matches } = await AADS.supabase
+                .from('matches')
+                .select('*, match_stats(player_id, three_dart_avg, one_eighties), event:event_id(is_toc)')
+                .or(`player_1_id.eq.${playerId},player_2_id.eq.${playerId}`);
+
+            let legWins = 0, legTotal = 0, total3DA = 0, count3DA = 0, total180s = 0;
+            let qualWins = 0, tocWins = 0;
+
+            (matches || []).forEach(m => {
+                const isP1 = m.player_1_id == playerId;
+                legWins += isP1 ? m.p1_legs : m.p2_legs;
+                legTotal += m.p1_legs + m.p2_legs;
+
+                if (m.winner_id == playerId) {
+                    if (m.event.is_toc) tocWins++;
+                    else qualWins++;
+                }
+
+                (m.match_stats || []).forEach(s => {
+                    if (s.player_id == playerId) {
+                        if (s.three_dart_avg) {
+                            total3DA += s.three_dart_avg;
+                            count3DA++;
+                        }
+                        total180s += s.one_eighties || 0;
+                    }
+                });
+            });
+
+            document.getElementById('careerMatches').textContent = matches?.length || 0;
+            document.getElementById('careerLegWinPct').textContent = 
+                legTotal > 0 ? ((legWins / legTotal) * 100).toFixed(2) + '%' : '0%';
+            document.getElementById('career3DA').textContent = 
+                count3DA > 0 ? (total3DA / count3DA).toFixed(2) : '0.00';
+            document.getElementById('career180s').textContent = total180s;
+            document.getElementById('careerQualWins').textContent = qualWins;
+            document.getElementById('careerTOCWins').textContent = tocWins;
+        }
+
+        async function loadAchievements() {
+            const { data: wins } = await AADS.supabase
+                .from('events')
+                .select('*, series:series_id(series_name)')
+                .eq('winner_id', playerId)
+                .order('id');
+
+            if (wins && wins.length > 0) {
+                document.getElementById('achievements').innerHTML = wins.map(e => `
+                    <div class="achievement-badge" onclick="window.location.href='event-view.html?id=${e.id}'">
+                        <span class="star-icon">⭐</span>
+                        <div>
+                            <strong>${e.series.series_name}</strong>
+                            <div>Event ${e.event_number}${e.is_toc ? ' (TOC)' : ''} Winner</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function loadSeriesPerformance() {
+            const series = await AADS.fetchSeries();
+            const rows = [];
+
+            for (const s of series) {
+                const { data: matches } = await AADS.supabase
+                    .from('matches')
+                    .select('*, match_stats(player_id, three_dart_avg, one_eighties), event:event_id(series_id, is_toc)')
+                    .eq('event.series_id', s.id)
+                    .or(`player_1_id.eq.${playerId},player_2_id.eq.${playerId}`);
+
+                if (!matches || matches.length === 0) continue;
+
+                let legWins = 0, legTotal = 0, total3DA = 0, count3DA = 0, total180s = 0, eventWins = 0;
+
+                matches.forEach(m => {
+                    const isP1 = m.player_1_id == playerId;
+                    legWins += isP1 ? m.p1_legs : m.p2_legs;
+                    legTotal += m.p1_legs + m.p2_legs;
+
+                    if (m.winner_id == playerId) eventWins++;
+
+                    (m.match_stats || []).forEach(stat => {
+                        if (stat.player_id == playerId) {
+                            if (stat.three_dart_avg) {
+                                total3DA += stat.three_dart_avg;
+                                count3DA++;
+                            }
+                            total180s += stat.one_eighties || 0;
+                        }
+                    });
+                });
+
+                rows.push(`
+                    <tr>
+                        <td><a href="series-view.html?series=${s.id}">${s.series_name}</a></td>
+                        <td>${matches.length}</td>
+                        <td>${((legWins / legTotal) * 100).toFixed(2)}%</td>
+                        <td>${(total3DA / count3DA).toFixed(2)}</td>
+                        <td>${total180s}</td>
+                        <td>${eventWins}</td>
+                    </tr>
+                `);
+            }
+
+            document.getElementById('seriesPerf').innerHTML = 
+                rows.length > 0 ? rows.join('') : '<tr><td colspan="6" class="text-center">No data</td></tr>';
+        }
+
+        async function loadMatchHistory() {
+            const { data: matches } = await AADS.supabase
+                .from('matches')
+                .select(`
+                    *,
+                    p1:player_1_id(name),
+                    p2:player_2_id(name),
+                    event:event_id(event_number, is_toc, series:series_id(series_name)),
+                    match_stats(player_id, three_dart_avg)
+                `)
+                .or(`player_1_id.eq.${playerId},player_2_id.eq.${playerId}`)
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (!matches || matches.length === 0) {
+                document.getElementById('matchHistory').innerHTML = '<tr><td colspan="6" class="text-center">No matches yet</td></tr>';
+                return;
+            }
+
+            document.getElementById('matchHistory').innerHTML = matches.map(m => {
+                const isP1 = m.player_1_id == playerId;
+                const opponent = isP1 ? m.p2 : m.p1;
+                const opponentId = isP1 ? m.player_2_id : m.player_1_id;
+                const won = m.winner_id == playerId;
+                const myLegs = isP1 ? m.p1_legs : m.p2_legs;
+                const oppLegs = isP1 ? m.p2_legs : m.p1_legs;
+                
+                const myStat = m.match_stats?.find(s => s.player_id == playerId);
+                const my3DA = myStat?.three_dart_avg || 0;
+
+                return `
+                    <tr>
+                        <td>${new Date(m.created_at).toLocaleDateString()}</td>
+                        <td>${m.event.series.series_name} E${m.event.event_number}${m.event.is_toc ? ' (TOC)' : ''}</td>
+                        <td class="player-name" onclick="window.location.href='player-profile.html?id=${opponentId}'">${opponent.name}</td>
+                        <td><span class="form-box ${won ? 'win' : 'lose'}">${won ? 'WIN' : 'LOSE'}</span></td>
+                        <td>${myLegs}-${oppLegs}</td>
+                        <td>${my3DA.toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    </script>
+</body>
+</html>

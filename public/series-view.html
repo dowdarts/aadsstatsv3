@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AADS - Series View | Atlantic Amateur Darts Series</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <a href="index.html">
+                    <img src="../assets/logos/Official AADS Logo.png" alt="AADS Logo" class="main-logo">
+                </a>
+                <div class="sponsor-logos">
+                    <a href="https://cgcdarts.com" target="_blank" title="CGC Darts">
+                        <img src="../assets/logos/CGCDARTS-COM IMPROVED LOGO.png" alt="CGC Darts" class="sponsor-logo">
+                    </a>
+                    <a href="https://aadsdarts.com" target="_blank" title="MD Studios">
+                        <img src="../assets/logos/MDstudios Logo.png" alt="MD Studios" class="sponsor-logo">
+                    </a>
+                    <a href="https://share.google/n72Q5jiffuoh394fn" target="_blank" title="CGC TV">
+                        <img src="../assets/logos/CGCTV logo.png" alt="CGC TV" class="sponsor-logo">
+                    </a>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <button class="nav-tab" onclick="window.location.href='index.html'">All-Time Stats</button>
+                <button class="nav-tab active" onclick="window.location.href='series-view.html'">Series</button>
+                <button class="nav-tab" onclick="window.location.href='players-directory.html'">Players Directory</button>
+                <button class="nav-tab" onclick="window.location.href='head-to-head.html'">Head-to-Head</button>
+            </nav>
+        </div>
+    </header>
+
+    <div class="breadcrumb-section">
+        <div class="breadcrumb">
+            <a href="index.html">Home</a> > <span>Series</span>
+        </div>
+        <button class="back-button" onclick="AADS.navHistory.goBack()">← Back</button>
+    </div>
+
+    <main class="container">
+        <h1 class="page-title">Series Overview</h1>
+
+        <!-- SERIES TABS -->
+        <div class="filter-section" id="seriesTabs">
+            <div class="loading-spinner"></div>
+        </div>
+
+        <!-- SERIES LEADERBOARD -->
+        <div class="section-card">
+            <h2 class="section-title">Series <span id="seriesTitle">1</span> Leaderboard <span id="seriesStatus"></span></h2>
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Matches</th>
+                        <th>Leg Win %</th>
+                        <th>3DA</th>
+                        <th>180s</th>
+                        <th>Event Wins</th>
+                    </tr>
+                </thead>
+                <tbody id="seriesLeaderboard">
+                    <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- QUALIFIER EVENTS GRID -->
+        <div class="section-card">
+            <h2 class="section-title">Qualifier Events (1-6)</h2>
+            <div class="achievements-grid" id="qualifierGrid">
+                <div class="loading-spinner"></div>
+            </div>
+        </div>
+
+        <!-- TOC QUALIFICATION TRACKER -->
+        <div class="section-card">
+            <h2 class="section-title">Tournament of Champions</h2>
+            <div id="tocStatus">
+                <p class="text-center">TOC Qualification Status: <strong id="qualCount">0/6</strong> Qualifiers Ready</p>
+                <div id="qualifierList" class="mt-2"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/app.js"></script>
+    <script>
+        let currentSeriesId = 1;
+        let allSeries = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadSeries();
+            AADS.subscribeToTable('events', loadSeriesData);
+        });
+
+        async function loadSeries() {
+            const series = await AADS.fetchSeries();
+            allSeries = series;
+
+            if (series.length === 0) {
+                document.getElementById('seriesTabs').innerHTML = '<p class="text-center">No series found. Check database setup.</p>';
+                return;
+            }
+
+            const tabs = series.map(s => `
+                <button class="nav-tab ${s.id === currentSeriesId ? 'active' : ''}" 
+                        onclick="selectSeries(${s.id})">
+                    ${s.series_name}
+                    ${s.is_complete ? '<span class="status-badge complete">Complete</span>' : '<span class="status-badge in-progress">In Progress</span>'}
+                </button>
+            `).join('');
+
+            document.getElementById('seriesTabs').innerHTML = tabs;
+            await loadSeriesData();
+        }
+
+        async function selectSeries(seriesId) {
+            currentSeriesId = seriesId;
+            await loadSeries();
+        }
+
+        async function loadSeriesData() {
+            const currentSeries = allSeries.find(s => s.id === currentSeriesId);
+            if (!currentSeries) return;
+
+            document.getElementById('seriesTitle').textContent = currentSeries.series_name.replace('Series ', '');
+            
+            // Load events
+            const events = await AADS.fetchEvents(currentSeriesId);
+            
+            // Build qualifier grid
+            const qualifiers = events.filter(e => !e.is_toc && e.event_number <= 6);
+            document.getElementById('qualifierGrid').innerHTML = qualifiers.map(e => `
+                <div class="achievement-badge ${e.winner_id ? '' : 'hidden'}" 
+                     onclick="window.location.href='event-view.html?id=${e.id}'">
+                    <span class="star-icon">⭐</span>
+                    <div>
+                        <div><strong>Event ${e.event_number}</strong></div>
+                        <div>${e.winner ? e.winner.name : 'Not Started'}</div>
+                    </div>
+                </div>
+            `).join('') || '<p class="text-center">No events completed yet</p>';
+
+            // TOC qualification
+            const winners = qualifiers.filter(e => e.winner_id);
+            document.getElementById('qualCount').textContent = `${winners.length}/6`;
+            document.getElementById('qualifierList').innerHTML = 
+                Array.from({length: 6}, (_, i) => {
+                    const event = qualifiers[i];
+                    return `
+                        <div class="mt-1">
+                            <strong>Event ${i + 1} Winner:</strong> 
+                            ${event?.winner ? `<a href="player-profile.html?id=${event.winner_id}">${event.winner.name}</a>` : '<span class="text-muted">TBD</span>'}
+                        </div>
+                    `;
+                }).join('');
+
+            // Load leaderboard
+            await loadSeriesLeaderboard();
+        }
+
+        async function loadSeriesLeaderboard() {
+            const { data: matches } = await AADS.supabase
+                .from('matches')
+                .select(`
+                    *,
+                    event:event_id!inner(series_id, is_toc),
+                    match_stats(player_id, three_dart_avg, one_eighties)
+                `)
+                .eq('event.series_id', currentSeriesId);
+
+            const playerStats = {};
+            const players = await AADS.fetchPlayers();
+
+            players.forEach(p => {
+                playerStats[p.id] = {
+                    id: p.id,
+                    name: p.name,
+                    matches: 0,
+                    legWins: 0,
+                    legTotal: 0,
+                    total3DA: 0,
+                    count3DA: 0,
+                    total180s: 0,
+                    eventWins: 0
+                };
+            });
+
+            (matches || []).forEach(m => {
+                if (playerStats[m.player_1_id]) {
+                    const p = playerStats[m.player_1_id];
+                    p.matches++;
+                    p.legWins += m.p1_legs;
+                    p.legTotal += m.p1_legs + m.p2_legs;
+                    if (m.winner_id === m.player_1_id) p.eventWins++;
+                }
+                if (playerStats[m.player_2_id]) {
+                    const p = playerStats[m.player_2_id];
+                    p.matches++;
+                    p.legWins += m.p2_legs;
+                    p.legTotal += m.p1_legs + m.p2_legs;
+                    if (m.winner_id === m.player_2_id) p.eventWins++;
+                }
+
+                (m.match_stats || []).forEach(stat => {
+                    if (playerStats[stat.player_id]) {
+                        const p = playerStats[stat.player_id];
+                        if (stat.three_dart_avg) {
+                            p.total3DA += stat.three_dart_avg;
+                            p.count3DA++;
+                        }
+                        p.total180s += stat.one_eighties || 0;
+                    }
+                });
+            });
+
+            const leaderboard = Object.values(playerStats)
+                .filter(p => p.matches > 0)
+                .map(p => ({
+                    ...p,
+                    legWinPercent: ((p.legWins / p.legTotal) * 100).toFixed(2),
+                    avg3DA: p.count3DA > 0 ? (p.total3DA / p.count3DA).toFixed(2) : '0.00'
+                }))
+                .sort((a, b) => parseFloat(b.legWinPercent) - parseFloat(a.legWinPercent));
+
+            document.getElementById('seriesLeaderboard').innerHTML = 
+                leaderboard.length > 0 
+                    ? leaderboard.map((p, i) => `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td class="player-name" onclick="window.location.href='player-profile.html?id=${p.id}'">${p.name}</td>
+                            <td>${p.matches}</td>
+                            <td>${p.legWinPercent}%</td>
+                            <td>${p.avg3DA}</td>
+                            <td>${p.total180s}</td>
+                            <td>${p.eventWins}</td>
+                        </tr>
+                    `).join('')
+                    : '<tr><td colspan="7" class="text-center">No matches played yet in this series</td></tr>';
+        }
+    </script>
+</body>
+</html>

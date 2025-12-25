@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AADS - Players Directory | Atlantic Amateur Darts Series</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <a href="index.html">
+                    <img src="../assets/logos/Official AADS Logo.png" alt="AADS Logo" class="main-logo">
+                </a>
+                <div class="sponsor-logos">
+                    <a href="https://cgcdarts.com" target="_blank"><img src="../assets/logos/CGCDARTS-COM IMPROVED LOGO.png" alt="CGC Darts" class="sponsor-logo"></a>
+                    <a href="https://aadsdarts.com" target="_blank"><img src="../assets/logos/MDstudios Logo.png" alt="MD Studios" class="sponsor-logo"></a>
+                    <a href="https://share.google/n72Q5jiffuoh394fn" target="_blank"><img src="../assets/logos/CGCTV logo.png" alt="CGC TV" class="sponsor-logo"></a>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <button class="nav-tab" onclick="window.location.href='index.html'">All-Time Stats</button>
+                <button class="nav-tab" onclick="window.location.href='series-view.html'">Series</button>
+                <button class="nav-tab active" onclick="window.location.href='players-directory.html'">Players Directory</button>
+                <button class="nav-tab" onclick="window.location.href='head-to-head.html'">Head-to-Head</button>
+            </nav>
+        </div>
+    </header>
+
+    <div class="breadcrumb-section">
+        <div class="breadcrumb"><a href="index.html">Home</a> > <span>Players Directory</span></div>
+        <button class="back-button" onclick="AADS.navHistory.goBack()">← Back</button>
+    </div>
+
+    <main class="container">
+        <h1 class="page-title">Players Directory</h1>
+
+        <div class="section-card">
+            <input type="text" id="searchPlayers" class="form-input" placeholder="Search players..." 
+                   style="max-width: 400px; margin: 0 auto 30px;">
+            
+            <div class="achievements-grid" id="playersGrid">
+                <div class="loading-spinner"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/app.js"></script>
+    <script>
+        let allPlayers = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadPlayers();
+            document.getElementById('searchPlayers').addEventListener('input', filterPlayers);
+        });
+
+        async function loadPlayers() {
+            allPlayers = await AADS.fetchPlayers();
+            allPlayers.sort((a, b) => a.name.localeCompare(b.name));
+            displayPlayers(allPlayers);
+        }
+
+        function filterPlayers() {
+            const search = document.getElementById('searchPlayers').value.toLowerCase();
+            const filtered = allPlayers.filter(p => p.name.toLowerCase().includes(search));
+            displayPlayers(filtered);
+        }
+
+        function displayPlayers(players) {
+            document.getElementById('playersGrid').innerHTML = players.length > 0
+                ? players.map(p => `
+                    <div class="achievement-badge" onclick="window.location.href='player-profile.html?id=${p.id}'" 
+                         style="background: var(--card-bg); color: var(--text-light); flex-direction: column; padding: 20px; cursor: pointer;">
+                        <img src="${p.photo_url || '../assets/logos/Official AADS Logo.png'}" 
+                             alt="${p.name}" 
+                             style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; border: 2px solid var(--orange-accent);">
+                        <div style="font-weight: 700; font-size: 16px;">${p.name}</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">${p.hometown || 'Unknown'}</div>
+                    </div>
+                `).join('')
+                : '<p class="text-center">No players found</p>';
+        }
+    </script>
+</body>
+</html>

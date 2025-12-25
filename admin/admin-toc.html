@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AADS Admin - TOC Event | LOCAL ONLY</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <img src="../assets/logos/Official AADS Logo.png" alt="AADS Logo" class="main-logo">
+            </div>
+            <nav class="main-nav">
+                <button class="nav-tab" onclick="window.location.href='admin-qualifier.html'">Qualifier Events</button>
+                <button class="nav-tab active" onclick="window.location.href='admin-toc.html'">TOC Event</button>
+                <button class="nav-tab" onclick="window.location.href='admin-players.html'">Manage Players</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <h1 class="page-title">⚠️ ADMIN - Tournament of Champions (LOCAL ONLY)</h1>
+
+        <!-- SERIES SELECTOR -->
+        <div class="section-card">
+            <h2 class="section-title">Select Series</h2>
+            <select id="seriesSelect" class="form-input" onchange="loadTOC()"></select>
+        </div>
+
+        <!-- QUALIFICATION STATUS -->
+        <div class="section-card" id="qualStatus">
+            <h2 class="section-title">Qualification Status</h2>
+            <div id="qualifierList"></div>
+        </div>
+
+        <!-- ROUND ROBIN (15 matches for 6 players) -->
+        <div class="section-card" id="roundRobinSection" style="display: none;">
+            <h2 class="section-title">Round Robin Stage (15 Matches)</h2>
+            <div id="roundRobinMatches"></div>
+            <button class="btn-secondary" onclick="previewStandings()">Preview Standings</button>
+        </div>
+
+        <!-- KNOCKOUT STAGE -->
+        <div class="section-card" id="knockoutSection" style="display: none;">
+            <h2 class="section-title">Knockout Stage (3 Matches)</h2>
+            <p class="text-muted">Auto-populated: SF1 (1st vs 4th), SF2 (2nd vs 3rd), Final</p>
+            <div id="knockoutMatches"></div>
+        </div>
+
+        <!-- ACTIONS -->
+        <div class="section-card" id="actionsSection" style="display: none;">
+            <div class="form-grid">
+                <button class="btn-primary" onclick="confirmAndLock()">✓ Complete Series & Lock TOC</button>
+                <button class="btn-secondary" onclick="reopenTOC()">🔓 Reopen & Edit</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- PREVIEW MODAL -->
+    <div id="previewModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>TOC Standings Preview</h2>
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th>Pos</th>
+                        <th>Player</th>
+                        <th>Matches</th>
+                        <th>Leg Wins</th>
+                        <th>Leg Losses</th>
+                        <th>+/-</th>
+                    </tr>
+                </thead>
+                <tbody id="previewBody"></tbody>
+            </table>
+            <button class="btn-primary" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script src="../js/app.js"></script>
+    <script>
+        let currentSeries = null;
+        let currentTOC = null;
+        let qualifiers = [];
+        let autocompletes = {};
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadSeries();
+        });
+
+        async function loadSeries() {
+            const series = await AADS.fetchSeries();
+            
+            const select = document.getElementById('seriesSelect');
+            select.innerHTML = series.map(s => 
+                `<option value="${s.id}">${s.series_name} ${s.is_complete ? '(Complete)' : ''}</option>`
+            ).join('');
+
+            await loadTOC();
+        }
+
+        async function loadTOC() {
+            const seriesId = document.getElementById('seriesSelect').value;
+            currentSeries = (await AADS.fetchSeries()).find(s => s.id == seriesId);
+            
+            const events = await AADS.fetchEvents(seriesId);
+            const qualifierEvents = events.filter(e => !e.is_toc && e.event_number <= 6);
+            const toc = events.find(e => e.is_toc);
+
+            currentTOC = toc;
+
+            // Check qualification status
+            qualifiers = qualifierEvents.filter(e => e.winner_id).map(e => e.winner_id);
+
+            document.getElementById('qualifierList').innerHTML = `
+                <p><strong>${qualifiers.length}/6 Qualifiers Ready</strong></p>
+                ${qualifierEvents.map((e, i) => `
+                    <div>Event ${i + 1} Winner: ${e.winner ? e.winner.name : '<span class="text-muted">TBD</span>'}</div>
+                `).join('')}
+            `;
+
+            if (qualifiers.length === 6 && toc) {
+                document.getElementById('roundRobinSection').style.display = 'block';
+                document.getElementById('knockoutSection').style.display = 'block';
+                document.getElementById('actionsSection').style.display = 'block';
+                await loadTOCMatches();
+            } else {
+                document.getElementById('roundRobinSection').style.display = 'none';
+                document.getElementById('knockoutSection').style.display = 'none';
+                document.getElementById('actionsSection').style.display = 'none';
+            }
+        }
+
+        async function loadTOCMatches() {
+            const { data: matches } = await AADS.supabase
+                .from('matches')
+                .select('*')
+                .eq('event_id', currentTOC.id);
+
+            renderRoundRobin(matches || []);
+            renderKnockout(matches || []);
+        }
+
+        function renderRoundRobin(existingMatches) {
+            const roundRobinMatches = existingMatches.filter(m => m.stage === 'group');
+            const players = await AADS.fetchPlayers();
+            const qualifierPlayers = players.filter(p => qualifiers.includes(p.id));
+
+            let html = '';
+            for (let i = 0; i < 15; i++) {
+                const match = roundRobinMatches[i];
+                html += `
+                    <div class="match-input-row" data-index="${i}">
+                        <select class="form-input" data-field="player1">
+                            <option value="">Select Player</option>
+                            ${qualifierPlayers.map(p => 
+                                `<option value="${p.id}" ${match?.player_1_id == p.id ? 'selected' : ''}>${p.name}</option>`
+                            ).join('')}
+                        </select>
+                        <input type="number" class="form-input" placeholder="Legs" 
+                               value="${match ? match.p1_legs : ''}" data-field="p1legs">
+                        <span class="vs-text">vs</span>
+                        <input type="number" class="form-input" placeholder="Legs" 
+                               value="${match ? match.p2_legs : ''}" data-field="p2legs">
+                        <select class="form-input" data-field="player2">
+                            <option value="">Select Player</option>
+                            ${qualifierPlayers.map(p => 
+                                `<option value="${p.id}" ${match?.player_2_id == p.id ? 'selected' : ''}>${p.name}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            document.getElementById('roundRobinMatches').innerHTML = html;
+        }
+
+        function renderKnockout(existingMatches) {
+            const knockouts = existingMatches.filter(m => m.stage === 'knockout');
+            const sf1 = knockouts.find(m => m.round === 'Semi-Final' && m.match_order === 1);
+            const sf2 = knockouts.find(m => m.round === 'Semi-Final' && m.match_order === 2);
+            const final = knockouts.find(m => m.round === 'Final');
+
+            document.getElementById('knockoutMatches').innerHTML = `
+                <h3>Semi-Final 1 (1st vs 4th)</h3>
+                <div class="match-input-row">
+                    <input type="text" class="form-input" placeholder="Auto-filled" value="${sf1?.player_1_id || ''}" readonly>
+                    <input type="number" class="form-input" placeholder="Legs" value="${sf1?.p1_legs || ''}" data-field="sf1_p1legs">
+                    <span class="vs-text">vs</span>
+                    <input type="number" class="form-input" placeholder="Legs" value="${sf1?.p2_legs || ''}" data-field="sf1_p2legs">
+                    <input type="text" class="form-input" placeholder="Auto-filled" value="${sf1?.player_2_id || ''}" readonly>
+                </div>
+                
+                <h3>Semi-Final 2 (2nd vs 3rd)</h3>
+                <div class="match-input-row">
+                    <input type="text" class="form-input" placeholder="Auto-filled" value="${sf2?.player_1_id || ''}" readonly>
+                    <input type="number" class="form-input" placeholder="Legs" value="${sf2?.p1_legs || ''}" data-field="sf2_p1legs">
+                    <span class="vs-text">vs</span>
+                    <input type="number" class="form-input" placeholder="Legs" value="${sf2?.p2_legs || ''}" data-field="sf2_p2legs">
+                    <input type="text" class="form-input" placeholder="Auto-filled" value="${sf2?.player_2_id || ''}" readonly>
+                </div>
+                
+                <h3>Final</h3>
+                <div class="match-input-row">
+                    <input type="text" class="form-input" placeholder="Auto-filled" value="${final?.player_1_id || ''}" readonly>
+                    <input type="number" class="form-input" placeholder="Legs" value="${final?.p1_legs || ''}" data-field="final_p1legs">
+                    <span class="vs-text">vs</span>
+                    <input type="number" class="form-input" placeholder="Legs" value="${final?.p2_legs || ''}" data-field="final_p2legs">
+                    <input type="text" class="form-input" placeholder="Auto-filled" value="${final?.player_2_id || ''}" readonly>
+                </div>
+            `;
+        }
+
+        async function previewStandings() {
+            const standings = await AADS.calculateGroupStandings(currentTOC.id);
+
+            document.getElementById('previewBody').innerHTML = standings.map((s, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${s.player_name}</td>
+                    <td>${s.matches_played}</td>
+                    <td>${s.leg_wins}</td>
+                    <td>${s.leg_losses}</td>
+                    <td>${s.leg_difference > 0 ? '+' : ''}${s.leg_difference}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('previewModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('previewModal').style.display = 'none';
+        }
+
+        async function confirmAndLock() {
+            if (!confirm('Complete this series? This will mark the series as complete and trigger Series 2 creation.')) return;
+
+            // Save all matches (similar to qualifier logic)
+            // Then mark series.is_complete = true
+            await AADS.adminRequest('update', 'series', {
+                id: currentSeries.id,
+                is_complete: true
+            });
+
+            alert('Series complete! TOC locked. Next series will be created automatically.');
+            await loadSeries();
+        }
+
+        async function reopenTOC() {
+            if (!confirm('Reopen TOC for editing?')) return;
+            
+            await AADS.adminRequest('insert', 'edit_log', {
+                event_id: currentTOC.id,
+                action: 'reopened',
+                admin_note: 'TOC reopened for corrections'
+            });
+
+            alert('TOC reopened.');
+        }
+    </script>
+
+    <style>
+        .match-input-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 80px 1fr 2fr;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .vs-text {
+            text-align: center;
+            font-weight: bold;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+        }
+    </style>
+</body>
+</html>

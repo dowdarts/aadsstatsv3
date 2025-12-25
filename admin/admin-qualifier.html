@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AADS Admin - Qualifier Events | LOCAL ONLY</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <img src="../assets/logos/Official AADS Logo.png" alt="AADS Logo" class="main-logo">
+            </div>
+            <nav class="main-nav">
+                <button class="nav-tab active" onclick="window.location.href='admin-qualifier.html'">Qualifier Events</button>
+                <button class="nav-tab" onclick="window.location.href='admin-toc.html'">TOC Event</button>
+                <button class="nav-tab" onclick="window.location.href='admin-players.html'">Manage Players</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <h1 class="page-title">⚠️ ADMIN - Qualifier Event Management (LOCAL ONLY)</h1>
+
+        <div id="series2Banner" class="section-card" style="background: var(--orange-accent); display: none;">
+            <p style="color: white; font-weight: bold; margin: 0;">
+                🎉 Series 2 is now available! 
+                <button onclick="dismissBanner()" style="float: right; background: white; color: var(--orange-accent); border: none; padding: 5px 15px; cursor: pointer; border-radius: 4px;">Dismiss</button>
+            </p>
+        </div>
+
+        <!-- SERIES & EVENT SELECTORS -->
+        <div class="section-card">
+            <h2 class="section-title">Select Event</h2>
+            <div class="form-grid">
+                <div>
+                    <label>Series</label>
+                    <select id="seriesSelect" class="form-input" onchange="loadEvents()"></select>
+                </div>
+                <div>
+                    <label>Qualifier Event (1-6)</label>
+                    <select id="eventSelect" class="form-input" onchange="loadEventData()"></select>
+                </div>
+            </div>
+        </div>
+
+        <!-- GROUP A MATCHES -->
+        <div class="section-card">
+            <h2 class="section-title">Group A - Round Robin (10 Matches)</h2>
+            <div id="groupAMatches"></div>
+            <button class="btn-secondary" onclick="previewStandings('A')">Preview Group A Standings</button>
+        </div>
+
+        <!-- GROUP B MATCHES -->
+        <div class="section-card">
+            <h2 class="section-title">Group B - Round Robin (10 Matches)</h2>
+            <div id="groupBMatches"></div>
+            <button class="btn-secondary" onclick="previewStandings('B')">Preview Group B Standings</button>
+        </div>
+
+        <!-- KNOCKOUT STAGE -->
+        <div class="section-card">
+            <h2 class="section-title">Knockout Stage (7 Matches)</h2>
+            <p class="text-muted">Auto-populated based on group standings: A1 vs B4, A2 vs B3, A3 vs B2, A4 vs B1</p>
+            <div id="knockoutMatches"></div>
+        </div>
+
+        <!-- ACTIONS -->
+        <div class="section-card">
+            <div class="form-grid">
+                <button class="btn-primary" onclick="confirmAndLock()">✓ Confirm & Lock Event</button>
+                <button class="btn-secondary" onclick="reopenEvent()">🔓 Reopen & Edit</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- PREVIEW MODAL -->
+    <div id="previewModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2 id="previewTitle">Group Standings Preview</h2>
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th>Pos</th>
+                        <th>Player</th>
+                        <th>Matches</th>
+                        <th>Leg Wins</th>
+                        <th>Leg Losses</th>
+                        <th>+/-</th>
+                    </tr>
+                </thead>
+                <tbody id="previewBody"></tbody>
+            </table>
+            <button class="btn-primary" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script src="../js/app.js"></script>
+    <script>
+        let currentSeries = null;
+        let currentEvent = null;
+        let allPlayers = [];
+        let autocompletes = {};
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            allPlayers = await AADS.fetchPlayers();
+            await loadSeries();
+        });
+
+        async function loadSeries() {
+            const series = await AADS.fetchSeries();
+            
+            const select = document.getElementById('seriesSelect');
+            select.innerHTML = series.map(s => 
+                `<option value="${s.id}">${s.series_name} ${s.is_complete ? '(Complete)' : ''}</option>`
+            ).join('');
+
+            if (series.length > 1 && !localStorage.getItem('series2Dismissed')) {
+                document.getElementById('series2Banner').style.display = 'block';
+            }
+
+            await loadEvents();
+        }
+
+        async function loadEvents() {
+            const seriesId = document.getElementById('seriesSelect').value;
+            const events = await AADS.fetchEvents(seriesId);
+            
+            const qualifiers = events.filter(e => !e.is_toc && e.event_number <= 6);
+            
+            const select = document.getElementById('eventSelect');
+            select.innerHTML = qualifiers.map(e => 
+                `<option value="${e.id}">Event ${e.event_number}${e.winner_id ? ' (Complete)' : ''}</option>`
+            ).join('');
+
+            await loadEventData();
+        }
+
+        async function loadEventData() {
+            const eventId = document.getElementById('eventSelect').value;
+            const { data: event } = await AADS.supabase
+                .from('events')
+                .select('*')
+                .eq('id', eventId)
+                .single();
+
+            currentEvent = event;
+
+            // Load existing matches
+            const { data: matches } = await AADS.supabase
+                .from('matches')
+                .select('*')
+                .eq('event_id', eventId);
+
+            renderGroupMatches('A', matches || []);
+            renderGroupMatches('B', matches || []);
+            renderKnockoutMatches(matches || []);
+        }
+
+        function renderGroupMatches(group, existingMatches) {
+            const container = document.getElementById(`group${group}Matches`);
+            const groupMatches = existingMatches.filter(m => m.stage === 'group' && m.group === group);
+
+            const html = Array.from({ length: 10 }, (_, i) => {
+                const match = groupMatches[i];
+                return `
+                    <div class="match-input-row" data-group="${group}" data-index="${i}">
+                        <input type="text" class="form-input autocomplete-input" 
+                               placeholder="Player 1" 
+                               value="${match ? match.player_1_id : ''}"
+                               data-field="player1" data-match-id="${match?.id || ''}">
+                        <input type="number" class="form-input" placeholder="Legs" 
+                               value="${match ? match.p1_legs : ''}" data-field="p1legs">
+                        <span class="vs-text">vs</span>
+                        <input type="number" class="form-input" placeholder="Legs" 
+                               value="${match ? match.p2_legs : ''}" data-field="p2legs">
+                        <input type="text" class="form-input autocomplete-input" 
+                               placeholder="Player 2" 
+                               value="${match ? match.player_2_id : ''}"
+                               data-field="player2" data-match-id="${match?.id || ''}">
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+
+            // Setup autocomplete
+            container.querySelectorAll('.autocomplete-input').forEach(input => {
+                const key = `${group}_${input.dataset.field}_${input.closest('.match-input-row').dataset.index}`;
+                if (!autocompletes[key]) {
+                    autocompletes[key] = new AADS.Autocomplete(input, null, allPlayers, player => {
+                        input.value = player.id;
+                        input.dataset.playerId = player.id;
+                    });
+                }
+            });
+        }
+
+        function renderKnockoutMatches(existingMatches) {
+            const knockouts = existingMatches.filter(m => m.stage === 'knockout');
+            const rounds = ['Quarter-Final', 'Semi-Final', 'Final'];
+            const counts = [4, 2, 1];
+
+            let html = '';
+            rounds.forEach((round, rIdx) => {
+                html += `<h3>${round}</h3>`;
+                for (let i = 0; i < counts[rIdx]; i++) {
+                    const match = knockouts.find(m => m.round === round && m.match_order === i + 1);
+                    html += `
+                        <div class="match-input-row" data-round="${round}" data-order="${i + 1}">
+                            <input type="text" class="form-input" placeholder="Auto-filled" 
+                                   value="${match ? match.player_1_id : ''}" readonly data-field="player1">
+                            <input type="number" class="form-input" placeholder="Legs" 
+                                   value="${match ? match.p1_legs : ''}" data-field="p1legs">
+                            <span class="vs-text">vs</span>
+                            <input type="number" class="form-input" placeholder="Legs" 
+                                   value="${match ? match.p2_legs : ''}" data-field="p2legs">
+                            <input type="text" class="form-input" placeholder="Auto-filled" 
+                                   value="${match ? match.player_2_id : ''}" readonly data-field="player2">
+                        </div>
+                    `;
+                }
+            });
+
+            document.getElementById('knockoutMatches').innerHTML = html;
+        }
+
+        async function previewStandings(group) {
+            const standings = await AADS.calculateGroupStandings(currentEvent.id);
+            const groupStandings = standings.filter(s => s.group === group);
+
+            document.getElementById('previewTitle').textContent = `Group ${group} Standings Preview`;
+            document.getElementById('previewBody').innerHTML = groupStandings.map((s, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${s.player_name}</td>
+                    <td>${s.matches_played}</td>
+                    <td>${s.leg_wins}</td>
+                    <td>${s.leg_losses}</td>
+                    <td>${s.leg_difference > 0 ? '+' : ''}${s.leg_difference}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('previewModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('previewModal').style.display = 'none';
+        }
+
+        async function confirmAndLock() {
+            if (!confirm('Lock this event? You can reopen later if needed.')) return;
+
+            // Save all match data
+            const groupARows = document.querySelectorAll('#groupAMatches .match-input-row');
+            const groupBRows = document.querySelectorAll('#groupBMatches .match-input-row');
+
+            for (const row of [...groupARows, ...groupBRows]) {
+                const p1 = row.querySelector('[data-field="player1"]').dataset.playerId;
+                const p2 = row.querySelector('[data-field="player2"]').dataset.playerId;
+                const p1Legs = row.querySelector('[data-field="p1legs"]').value;
+                const p2Legs = row.querySelector('[data-field="p2legs"]').value;
+
+                if (p1 && p2 && p1Legs && p2Legs) {
+                    await AADS.adminRequest('upsert', 'matches', {
+                        event_id: currentEvent.id,
+                        player_1_id: p1,
+                        player_2_id: p2,
+                        p1_legs: parseInt(p1Legs),
+                        p2_legs: parseInt(p2Legs),
+                        winner_id: parseInt(p1Legs) > parseInt(p2Legs) ? p1 : p2,
+                        stage: 'group',
+                        group: row.dataset.group
+                    });
+                }
+            }
+
+            alert('Event locked successfully!');
+            await loadEventData();
+        }
+
+        async function reopenEvent() {
+            if (!confirm('Reopen this event for editing?')) return;
+            
+            await AADS.adminRequest('insert', 'edit_log', {
+                event_id: currentEvent.id,
+                action: 'reopened',
+                admin_note: 'Event reopened for corrections'
+            });
+
+            alert('Event reopened. You can now make changes.');
+        }
+
+        function dismissBanner() {
+            localStorage.setItem('series2Dismissed', 'true');
+            document.getElementById('series2Banner').style.display = 'none';
+        }
+    </script>
+
+    <style>
+        .match-input-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 80px 1fr 2fr;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .vs-text {
+            text-align: center;
+            font-weight: bold;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+        }
+    </style>
+</body>
+</html>
