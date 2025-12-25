@@ -1,3 +1,18 @@
+-- =====================================================
+--  CLEANUP: Drop existing objects if they exist
+-- =====================================================
+
+DROP VIEW IF EXISTS head_to_head_stats CASCADE;
+DROP FUNCTION IF EXISTS calculate_group_standings(INTEGER, VARCHAR) CASCADE;
+DROP TRIGGER IF EXISTS trigger_create_next_series ON series CASCADE;
+DROP FUNCTION IF EXISTS create_next_series() CASCADE;
+DROP TABLE IF EXISTS edit_log CASCADE;
+DROP TABLE IF EXISTS match_stats CASCADE;
+DROP TABLE IF EXISTS matches CASCADE;
+DROP TABLE IF EXISTS events CASCADE;
+DROP TABLE IF EXISTS players CASCADE;
+DROP TABLE IF EXISTS series CASCADE;
+
 -- Atlantic Amateur Darts Series (AADS) Database Schema
 -- Full-featured statistics tracking system with multi-series support
 
@@ -157,14 +172,12 @@ SELECT
     SUM(CASE WHEN m.winner_id = GREATEST(m.player_1_id, m.player_2_id) THEN 1 ELSE 0 END) AS player_b_wins,
     SUM(CASE WHEN m.player_1_id = LEAST(m.player_1_id, m.player_2_id) THEN m.p1_legs ELSE m.p2_legs END) AS player_a_legs_won,
     SUM(CASE WHEN m.player_1_id = LEAST(m.player_1_id, m.player_2_id) THEN m.p2_legs ELSE m.p1_legs END) AS player_b_legs_won,
-    ROUND(AVG(CASE WHEN ms.player_id = LEAST(m.player_1_id, m.player_2_id) THEN ms.three_dart_avg END), 2) AS player_a_avg_3da,
-    ROUND(AVG(CASE WHEN ms.player_id = GREATEST(m.player_1_id, m.player_2_id) THEN ms.three_dart_avg END), 2) AS player_b_avg_3da,
-    ROUND(AVG(CASE WHEN ms.player_id = LEAST(m.player_1_id, m.player_2_id) THEN ms.first_nine_avg END), 2) AS player_a_first9_avg,
-    ROUND(AVG(CASE WHEN ms.player_id = GREATEST(m.player_1_id, m.player_2_id) THEN ms.first_nine_avg END), 2) AS player_b_first9_avg,
-    ROUND(AVG(CASE WHEN ms.player_id = LEAST(m.player_1_id, m.player_2_id) 
-        THEN (ms.checkout_completed::FLOAT / NULLIF(ms.checkout_opportunity, 0) * 100) END), 2) AS player_a_co_percent,
-    ROUND(AVG(CASE WHEN ms.player_id = GREATEST(m.player_1_id, m.player_2_id) 
-        THEN (ms.checkout_completed::FLOAT / NULLIF(ms.checkout_opportunity, 0) * 100) END), 2) AS player_b_co_percent
+    ROUND(CAST(AVG(CASE WHEN ms.player_id = LEAST(m.player_1_id, m.player_2_id) THEN ms.three_dart_avg END) AS numeric), 2) AS player_a_avg_3da,
+    ROUND(CAST(AVG(CASE WHEN ms.player_id = GREATEST(m.player_1_id, m.player_2_id) THEN ms.three_dart_avg END) AS numeric), 2) AS player_b_avg_3da,
+    ROUND(CAST(AVG(CASE WHEN ms.player_id = LEAST(m.player_1_id, m.player_2_id) THEN ms.first_nine_avg END) AS numeric), 2) AS player_a_first9_avg,
+    ROUND(CAST(AVG(CASE WHEN ms.player_id = GREATEST(m.player_1_id, m.player_2_id) THEN ms.first_nine_avg END) AS numeric), 2) AS player_b_first9_avg,
+    ROUND(CAST(AVG(CASE WHEN ms.player_id = LEAST(m.player_1_id, m.player_2_id) THEN (ms.checkout_completed::FLOAT / NULLIF(ms.checkout_opportunity, 0) * 100) END) AS numeric), 2) AS player_a_co_percent,
+    ROUND(CAST(AVG(CASE WHEN ms.player_id = GREATEST(m.player_1_id, m.player_2_id) THEN (ms.checkout_completed::FLOAT / NULLIF(ms.checkout_opportunity, 0) * 100) END) AS numeric), 2) AS player_b_co_percent
 FROM matches m
 JOIN match_stats ms ON m.id = ms.match_id
 GROUP BY LEAST(m.player_1_id, m.player_2_id), GREATEST(m.player_1_id, m.player_2_id);
@@ -226,7 +239,7 @@ CREATE OR REPLACE FUNCTION calculate_group_standings(
     p_group VARCHAR(20)
 )
 RETURNS TABLE(
-    position INTEGER,
+    "position" INTEGER,
     player_id INTEGER,
     player_name VARCHAR(100),
     matches_played BIGINT,
@@ -318,3 +331,8 @@ VALUES ('Series 1', 2025, FALSE);
 -- 2. Replace 'YOUR_SECRET_KEY_HERE' with your actual admin secret
 -- 3. Enable pg_cron extension in Supabase dashboard
 -- 4. Test schema with sample data
+
+
+
+
+
